@@ -45,10 +45,10 @@ int main( int argc, char *argv[ ] ) {
 	// setting values
 	int bitsOffset = ( int ) log2( bSize );
 	int bitsIndex = ( int ) log2( nSets );
-	int bitsTag = 32 - bitsOffset - bitsIndex;
+	//int bitsTag = 32 - bitsOffset - bitsIndex;
 
 	// current address info
-	uint32_t tag, index, address, mask = 0xffffffff >> bitsTag;
+	uint32_t tag, index, address; //mask = 0xffffffff >> bitsTag;
 
 	// helper
 	int *dummy, aux = 0, auxR = assoc;
@@ -71,7 +71,8 @@ int main( int argc, char *argv[ ] ) {
 
 		// bitwise manipulation shenanigans
 		tag = address >> ( bitsOffset + bitsIndex );
-		index = ( address & mask ) >> bitsOffset;
+		index = ( address % nSets ) >> bitsOffset;
+		//index = ( address & mask ) >> bitsOffset;
 
 		for ( int i = 0; i < assoc; i++ ) { // checks every block
 			if ( cache[index + ( nSets * i )].val == 0 ) { // cache[index][i]
