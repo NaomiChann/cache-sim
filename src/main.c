@@ -10,19 +10,37 @@ typedef struct {
 	int val;
 } Cache;
 
-uint32_t reverse_bytes( uint32_t bytes );
+uint32_t ReverseBytes( uint32_t bytes );
+void HowRU_LRU( int *dummy, int assoc, int nSets, uint32_t index,  uint32_t indexC );
 
-int main() {
+int main( int argc, char *argv[ ] ) {
+	if ( argc != 7 ){
+		printf( "Numero de argumentos incorreto. Utilize: \n" );
+		printf( "./cache_simulator <nsets> <bsize> <assoc> <substituição> <flag_saida> arquivo_de_entrada\n" );
+		exit( EXIT_FAILURE );
+	}
+
 	// variables
 	int miss = 0, hit = 0, missComp = 0, missConf = 0, missCap = 0, accesses = 0;
 	float missRate = 0, hitRate = 0, missCompRate = 0, missConfRate = 0, missCapRate = 0;
-	size_t addressSize = 4; // 4 bytes = 32 bits
+	FILE *inputFile;
+	size_t addressSize = 4; // 32 bit
 	srand( time( NULL ) ); // randomize seed	
 
+	/*
 	// args (debug)
-	int nSets = 512, bSize = 8, assoc = 1, flagOut = 0;
-	char subst[2] = "r";
-	FILE *inputFile;
+	int nSets = 128, bSize = 2, assoc = 4, flagOut = 0;
+	char replace[2] = "r";
+
+	// file path (debug, needs to be changed if running elsewhere)
+	fopen_s( &inputFile, "C:/Internet Explorer/The Basement/spaghetti code/cache sim/output/bin_1000.bin", "rb" );
+	*/
+	
+	// args
+	int nSets = atoi( argv[1] ), bSize = atoi( argv[2] ), assoc = atoi( argv[3] ), flagOut = atoi( argv[5] );
+	char *replace = argv[4];
+	char *inputFilePath = argv[6];
+	fopen_s( &inputFile, inputFilePath, "rb" );
 
 	// setting values
 	int bitsOffset = ( int ) log2( bSize );
@@ -30,77 +48,77 @@ int main() {
 	int bitsTag = 32 - bitsOffset - bitsIndex;
 
 	// current address info
-	uint32_t tag, index, address;
+	uint32_t tag, index, address, mask = 0xffffffff >> bitsTag;
+
+	// helper
+	int *dummy, aux = 0, auxR = assoc;
+	dummy = ( int * ) malloc( ( nSets * assoc ) * sizeof( int ) );
 
 	// creates empty cache
 	Cache *cache;
 	cache = ( Cache * ) malloc( ( nSets * assoc ) * sizeof( Cache ) );
 	
-	// helper
-	int *dummy, aux = 0, auxS = 0, auxM = nSets * assoc;
-	dummy = ( int * ) malloc( ( nSets * assoc ) * sizeof( int ) );
-
 	// sets all allocated arrays' values to 0
 	for ( int i = 0; i < ( nSets * assoc ); i++ ) {
 		cache[i].val = 0;
 		dummy[i] = 0;
 	}
-	// file path (debug, needs to be changed if running elsewhere)
-	fopen_s( &inputFile, "C:/Internet Explorer/The Basement/spaghetti code/cache sim/output/vortex.in.sem.persons.bin", "rb" );
 
-	while ( fread( &address, addressSize, 1, inputFile ) != 0 ) { // loops until eof
+	// file reading loop
+	while ( fread( &address, addressSize, 1, inputFile ) != 0 ) {
 		accesses++;
-		address = reverse_bytes( address ); // why is this even needed? :/
+		address = ReverseBytes( address ); // why is this even needed? :/
 
 		// bitwise manipulation shenanigans
 		tag = address >> ( bitsOffset + bitsIndex );
-		index = address % nSets;
-		index = index >> bitsOffset;
-
-		// this has never happened before
-		if ( index > ( uint32_t ) nSets ) {
-			printf( "wha? why? how? how do i even stop this?" );
-		}
+		index = ( address & mask ) >> bitsOffset;
 
 		for ( int i = 0; i < assoc; i++ ) { // checks every block
-			if ( cache[index + ( nSets * i )].val == 0 ) {
-				missComp++;
-				auxM--;
+			if ( cache[index + ( nSets * i )].val == 0 ) { // cache[index][i]
+				if ( i == 0 ) {
+					missComp++;
+				} else {
+					missConf++;
+				}
+
 				cache[index + ( nSets * i )].val = 1;
 				cache[index + ( nSets * i )].tag = tag;
+				if ( strcmp( replace, "l" ) == 0 ) { // treats lru case
+					HowRU_LRU( dummy, assoc, nSets, index, ( index + ( nSets * i ) ) );
+				}
 				goto end;
 			} else if ( cache[index + ( nSets * i )].tag == tag ) {
 				hit++;
-				if ( strcmp( subst, "l" ) == 0 ) { // treats lru case
-					for ( int j = 0; j < nSets; j++ ) { // increases "use value" for all other slots
-						dummy[index + ( nSets * j )] += 1;
-					}
-					dummy[index + ( nSets * i )] = 0; // sets its use value to 0 since it's new
+				if ( strcmp( replace, "l" ) == 0 ) {
+					HowRU_LRU( dummy, assoc, nSets, index, ( index + ( nSets * i ) ) );
 				}
 				goto end;
 			}
 		}
 
-		// other miss cases substitution behaviors
-		if ( auxM == 0 ) {
-			missCap++;
-		} else {
-			missConf++;
+		missCap++;
+
+		// skips replacement policy for direct mapping
+		if ( assoc == 1 ) { 
+			cache[index].tag = tag;
+			goto end;
 		}
 
 		// random
-		if ( strcmp( subst, "r" ) == 0 ) {
+		if ( strcmp( replace, "r" ) == 0 ) {
 			cache[index + ( nSets * ( rand() % ( assoc - 1 ) ) )].tag = tag;
+
 		// fifo
-		} else if ( strcmp( subst, "f" ) == 0 ) {
-			cache[auxS].tag = tag;
-			if ( auxS < assoc ) { // increases the helper variable up to the associativity
-				auxS++;
+		} else if ( strcmp( replace, "f" ) == 0 ) {
+			if ( auxR < assoc ) { // increases the helper variable up to the associativity
+				auxR++;
 			} else { // then loops back to 0
-				auxS = 0;
+				auxR = 0;
 			}
+			cache[index + ( nSets * auxR )].tag = tag;
+			
 		// lru
-		} else if ( strcmp( subst, "l" ) == 0 ) {
+		} else if ( strcmp( replace, "l" ) == 0 ) {
 			aux = index;
 			for ( int i = 1; i < assoc; i++ ) { // checks every single one for their use value and keeps the highest
 				if ( dummy[index + ( nSets * ( i ) )] > dummy[index + ( nSets * ( i - 1 ) )] ) {
@@ -108,18 +126,15 @@ int main() {
 				}
 			}
 
-			for ( int i = 0; i < assoc; i++ ) { // increases the use value of everyone else in this block
-				dummy[index + ( nSets * ( i ) )] += 1;
-			}
 			cache[aux].tag = tag; // sets the previously highest as the new address
-			dummy[aux] = 0; // abd its use value to 0
+			HowRU_LRU( dummy, assoc, nSets, index, aux );
 		}
 
 		end:
 	}
 	
 	// miss values updating and calculation
-	miss += missComp + missConf + missCap;
+	miss = missComp + missConf + missCap;
 
 	missRate = ( float ) miss / accesses;
 	hitRate = ( float ) hit / accesses;
@@ -131,21 +146,38 @@ int main() {
 	if ( flagOut == 1 ) {
 		printf( "%d %.2f %.2f %.2f %.2f %.2f \n", accesses, hitRate, missRate, missCompRate, missCapRate, missConfRate );
 	} else {
-		printf( "%d sets, block size: %d, associativity: %d \n", nSets, bSize, assoc );
-		printf( "accesses: %d hits: %d misses: %d \nhit rate: %.2f \nmiss rate: %.2f \n", accesses, hit, miss, hitRate, missRate );
-		printf( "compulsory: %d rate: %.2f \nconflict: %d rate: %.2f \ncapacity: %d rate %.2f \n", missComp, missCompRate, missConf, missConfRate, missCap, missCapRate );
+		printf( "============================================== \n" );
+		printf( "%d sets, block size: %d, associativity: %d, ", nSets, bSize, assoc );
+		if ( strcmp( replace, "r" ) == 0 ) {
+			printf( "random \n" );
+		} else if ( strcmp( replace, "f" ) == 0 ) {
+			printf( "FIFO \n" );
+		} else if ( strcmp( replace, "l" ) == 0 ) {
+			printf( "LRU \n" );
+		}
+		printf( "---------------------------------------------- \n" );
+		printf( "accesses   | %d \nhits       | %d ( %.2f%% ) \n", accesses, hit, hitRate * 100 );
+		printf( "misses     | %d ( %.2f%% ) \n", miss, missRate * 100 );
+		printf( "---------------------------------------------- \n" );
+		printf( "compulsory | %d ( %.2f%% ) \ncapacity   | %d ( %.2f%% ) \nconflict   | %d ( %.2f%% ) \n", missComp, missCompRate * 100, missCap, missCapRate * 100, missConf, missConfRate * 100 );
+		printf( "============================================== \n" );
 	}
 	
-	// properly closes and frees everything
 	free( cache );
 	free( dummy );
-	fclose( inputFile );
+	// fclose( inputFile );
 
 	return ( 0 );
 }
 
-// extracted shamelesly from https://stackoverflow.com/questions/32786493/reversing-byte-order-in-c
-uint32_t reverse_bytes( uint32_t bytes ) { 
+/*
+=====
+reverses bytes order cause they're backwards for whatever reason
+-----
+extracted shamelesly from https://stackoverflow.com/questions/32786493/reversing-byte-order-in-c
+=====
+*/
+uint32_t ReverseBytes( uint32_t bytes ) { 
     uint32_t aux = 0;
     uint8_t byte;
 
@@ -156,3 +188,16 @@ uint32_t reverse_bytes( uint32_t bytes ) {
 
     return ( aux );
 } // shoutouts to 4pie0
+
+/*
+=====
+whole block use value inceased by 1
+most recently used set to 0
+=====
+*/
+void HowRU_LRU( int *dummy, int assoc, int nSets, uint32_t index,  uint32_t indexC ) {
+	for ( int i = 0; i < assoc; i++ ) {
+		dummy[index + ( nSets * i )] += 1;
+	}
+	dummy[indexC] = 0;
+}
