@@ -1,5 +1,6 @@
 compilação:
 gcc -Wall -Wextra -g -Iinclude -c cache_simulator.c -o cache_simulator.o
+
 gcc -Wall -Wextra -g -Iinclude -o cache_simulator.exe cache_simulator.o -Llib
 
 execução:
