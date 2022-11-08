@@ -16,7 +16,7 @@ void HowRU_LRU( int *dummy, int assoc, int nSets, uint32_t index,  uint32_t inde
 int main( int argc, char *argv[ ] ) {
 	if ( argc != 7 ){
 		printf( "Numero de argumentos incorreto. Utilize: \n" );
-		printf( "./cache_simulator <nsets> <bsize> <assoc> <substituição> <flag_saida> arquivo_de_entrada\n" );
+		printf( "cache_simulator.exe <nsets> <bsize> <assoc> <substituicao> <flag_saida> arquivo_de_entrada.bin \n" );
 		exit( EXIT_FAILURE );
 	}
 
@@ -27,15 +27,6 @@ int main( int argc, char *argv[ ] ) {
 	size_t addressSize = 4; // 32 bit
 	srand( time( NULL ) ); // randomize seed	
 
-	/*
-	// args (debug)
-	int nSets = 128, bSize = 2, assoc = 4, flagOut = 0;
-	char replace[2] = "r";
-
-	// file path (debug, needs to be changed if running elsewhere)
-	fopen_s( &inputFile, "C:/Internet Explorer/The Basement/spaghetti code/cache sim/output/bin_1000.bin", "rb" );
-	*/
-	
 	// args
 	int nSets = atoi( argv[1] ), bSize = atoi( argv[2] ), assoc = atoi( argv[3] ), flagOut = atoi( argv[5] );
 	char *replace = argv[4];
@@ -51,7 +42,7 @@ int main( int argc, char *argv[ ] ) {
 	uint32_t tag, index, address; //mask = 0xffffffff >> bitsTag;
 
 	// helper
-	int *dummy, aux = 0, auxR = assoc;
+	int *dummy, aux = 0, auxR = assoc, auxC = nSets * assoc;
 	dummy = ( int * ) malloc( ( nSets * assoc ) * sizeof( int ) );
 
 	// creates empty cache
@@ -71,16 +62,13 @@ int main( int argc, char *argv[ ] ) {
 
 		// bitwise manipulation shenanigans
 		tag = address >> ( bitsOffset + bitsIndex );
-		index = ( address % nSets ) >> bitsOffset;
+		index = ( address >> bitsOffset ) % nSets;
 		//index = ( address & mask ) >> bitsOffset;
 
 		for ( int i = 0; i < assoc; i++ ) { // checks every block
 			if ( cache[index + ( nSets * i )].val == 0 ) { // cache[index][i]
-				if ( i == 0 ) {
-					missComp++;
-				} else {
-					missConf++;
-				}
+				missComp++;
+				auxC--;
 
 				cache[index + ( nSets * i )].val = 1;
 				cache[index + ( nSets * i )].tag = tag;
@@ -97,7 +85,11 @@ int main( int argc, char *argv[ ] ) {
 			}
 		}
 
-		missCap++;
+		if ( auxC == 0 ) {
+			missCap++;
+		} else {
+			missConf++;
+		}
 
 		// skips replacement policy for direct mapping
 		if ( assoc == 1 ) { 
@@ -107,11 +99,11 @@ int main( int argc, char *argv[ ] ) {
 
 		// random
 		if ( strcmp( replace, "r" ) == 0 ) {
-			cache[index + ( nSets * ( rand() % ( assoc - 1 ) ) )].tag = tag;
+			cache[index + ( nSets * ( rand() % ( assoc ) ) )].tag = tag;
 
 		// fifo
 		} else if ( strcmp( replace, "f" ) == 0 ) {
-			if ( auxR < assoc ) { // increases the helper variable up to the associativity
+			if ( auxR < ( assoc - 1 ) ) { // increases the helper variable up to the associativity
 				auxR++;
 			} else { // then loops back to 0
 				auxR = 0;
@@ -122,7 +114,7 @@ int main( int argc, char *argv[ ] ) {
 		} else if ( strcmp( replace, "l" ) == 0 ) {
 			aux = index;
 			for ( int i = 1; i < assoc; i++ ) { // checks every single one for their use value and keeps the highest
-				if ( dummy[index + ( nSets * ( i ) )] > dummy[index + ( nSets * ( i - 1 ) )] ) {
+				if ( dummy[index + ( nSets * ( i ) )] > dummy[aux] ) {
 					aux = index + ( nSets * ( i ) ); // an auxiliar array keeps track of every slot
 				}
 			}
