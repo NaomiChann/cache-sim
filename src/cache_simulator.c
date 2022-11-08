@@ -11,7 +11,7 @@ typedef struct {
 } Cache;
 
 uint32_t ReverseBytes( uint32_t bytes );
-void HowRU_LRU( int *dummy, int assoc, int nSets, uint32_t index,  uint32_t indexC );
+void HowRU_LRU( int *dummy, int assoc, int nSets, uint32_t index, uint32_t indexC );
 
 int main( int argc, char *argv[ ] ) {
 	if ( argc != 7 ){
@@ -36,10 +36,9 @@ int main( int argc, char *argv[ ] ) {
 	// setting values
 	int bitsOffset = ( int ) log2( bSize );
 	int bitsIndex = ( int ) log2( nSets );
-	//int bitsTag = 32 - bitsOffset - bitsIndex;
 
 	// current address info
-	uint32_t tag, index, address; //mask = 0xffffffff >> bitsTag;
+	uint32_t tag, index, address;
 
 	// helper
 	int *dummy, aux = 0, auxR = assoc, auxC = nSets * assoc;
@@ -63,7 +62,6 @@ int main( int argc, char *argv[ ] ) {
 		// bitwise manipulation shenanigans
 		tag = address >> ( bitsOffset + bitsIndex );
 		index = ( address >> bitsOffset ) % nSets;
-		//index = ( address & mask ) >> bitsOffset;
 
 		for ( int i = 0; i < assoc; i++ ) { // checks every block
 			if ( cache[index + ( nSets * i )].val == 0 ) { // cache[index][i]
@@ -158,7 +156,7 @@ int main( int argc, char *argv[ ] ) {
 	
 	free( cache );
 	free( dummy );
-	// fclose( inputFile );
+	fclose( inputFile );
 
 	return ( 0 );
 }
@@ -167,7 +165,7 @@ int main( int argc, char *argv[ ] ) {
 =====
 reverses bytes order cause they're backwards for whatever reason
 -----
-extracted shamelesly from https://stackoverflow.com/questions/32786493/reversing-byte-order-in-c
+extracted shamelessly from https://stackoverflow.com/questions/32786493/reversing-byte-order-in-c
 =====
 */
 uint32_t ReverseBytes( uint32_t bytes ) { 
